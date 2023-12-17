@@ -1,0 +1,406 @@
+// C++ Implementation of Quad Tree
+#include <cmath>
+#include <iostream>
+#include "Header.h"
+#include <SFML/Graphics.hpp>
+#include <thread>
+#include <vector>
+
+using namespace std;
+using namespace sf;
+
+
+
+
+#define SCREEN_W 1980
+#define SCREEN_H 900
+#define SCREEN_TREE_W 800
+#define SCREEN_TREE_H 800
+#define SCREEN_SPACE 50
+#define MAX_LEVEL 6
+#define CAPACITY 4
+
+class Point {
+public:
+    int x;
+    int y;
+    bool highlighted;
+    Point(int _x, int _y, bool hltd = false)
+    {
+        x = _x;
+        y = _y;
+        highlighted = hltd;
+    }
+    Point()
+    {
+        x = 0;
+        y = 0;
+        highlighted = false;
+        
+    }
+    void ColorHighlighted(Point* p) {
+        p->highlighted = true;
+    }
+    
+};
+
+class Rectangle {
+public:
+    float x, y, w, h;
+    Rectangle(){}
+
+    Rectangle(float _x, float _y, float _w, float _h) : x(_x), y(_y), w(_w), h(_h) {}
+    
+  
+
+    bool contains(const Point& p) const { 
+        return p.x >= x - w && p.x <= x + w     //проверяем, содержится ли точка в прямоугольнике
+            && p.y >= y - h && p.y <= y + h;
+    }
+
+    void draw(RenderTarget& t) {
+        static Vertex vertices[5];
+        Color color = Color::White;
+        color.a = 120;
+        vertices[0] = Vertex(Vector2f(x - w, y - h), color);
+        vertices[1] = Vertex(Vector2f(x + w, y - h), color);
+        vertices[2] = Vertex(Vector2f(x + w, y + h), color);
+        vertices[3] = Vertex(Vector2f(x - w, y + h), color);
+        vertices[4] = Vertex(Vector2f(x - w, y - h), color);
+        t.draw(vertices, 5, LinesStrip);
+    }
+
+    bool intersects(Rectangle& other) {
+        return !(x - w > other.x + other.w || x + w < other.x - other.w || y - h>other.y + other.h || y + h < other.y - other.h);
+    }
+};
+
+    class Quad {
+        // Hold details of the boundary of this node
+        
+        // Children of this tree
+        Quad* topLeftTree;
+        Quad* topRightTree;
+        Quad* botLeftTree;
+        Quad* botRightTree;
+        
+
+        Rectangle boundaries;
+        size_t capacity;
+        size_t level;
+        bool divided;
+        vector<Point*> children;
+
+
+        void subdivide() {
+            static Vector2f halfSize;
+            halfSize.x = boundaries.w / 2.0f;
+            halfSize.y = boundaries.h / 2.0f;
+            topLeftTree = new Quad(Rectangle(boundaries.x - halfSize.x, boundaries.y - halfSize.y, halfSize.x, halfSize.y), capacity, level + 1);
+            topRightTree = new Quad(Rectangle(boundaries.x + halfSize.x, boundaries.y - halfSize.y, halfSize.x, halfSize.y), capacity, level + 1);
+
+            botLeftTree = new Quad(Rectangle(boundaries.x - halfSize.x, boundaries.y + halfSize.y, halfSize.x, halfSize.y), capacity, level + 1);
+            botRightTree= new Quad(Rectangle(boundaries.x + halfSize.x, boundaries.y + halfSize.y, halfSize.x, halfSize.y), capacity, level + 1);
+
+            divided = true;
+        }
+
+        int countChildren() {
+            int count = 0;
+            count += topLeftTree->children.size();
+            count += topRightTree->children.size();
+            count += botRightTree->children.size();
+            count += botLeftTree->children.size();
+            return count;
+        }
+
+    public:
+        Quad(const Rectangle& _boundaries, size_t _capacity, size_t _level) {
+            topLeftTree = NULL;
+            topRightTree = NULL;
+            botLeftTree = NULL;
+            botRightTree = NULL;
+            boundaries = _boundaries;
+            divided = false;
+            capacity = _capacity;
+            level = _level;
+            if (level >= MAX_LEVEL)
+                capacity = 0;
+
+        }
+        ~Quad()
+        {
+            if (divided) {
+                delete topLeftTree;
+                delete topRightTree;
+                delete botLeftTree;
+                delete botRightTree;
+            }
+        }
+
+        bool insert(Point* p) {
+            if (!boundaries.contains(*p))
+                return false;
+            if (!divided) {
+                children.push_back(p);
+                if (children.size() > capacity && capacity != 0) {
+                    subdivide();
+                    vector<Point*>::iterator it = children.begin();
+                    while (it != children.end()) {
+                        if (topLeftTree->insert(*it));
+                        else if (topRightTree->insert(*it));
+                        else if (botLeftTree->insert(*it));
+                        else if (botRightTree->insert(*it));
+
+                        it = children.erase(it);
+                    }
+                }
+
+                return true;
+            }
+            else {
+                if (topLeftTree->insert(p))
+                    return true;
+                else if (topRightTree->insert(p))
+                    return true;
+                if (botLeftTree->insert(p))
+                    return true;
+                if (botRightTree->insert(p))
+                    return true;
+                return false;
+            }
+        }
+        void draw(RenderTarget& t) {
+            if (divided) {
+                static Vertex vertices[4];
+                vertices[0] = Vertex(Vector2f(boundaries.x, boundaries.y - boundaries.h), Color::White);
+                vertices[1] = Vertex(Vector2f(boundaries.x, boundaries.y + boundaries.h), Color::White);
+                vertices[2] = Vertex(Vector2f(boundaries.x - boundaries.w, boundaries.y), Color::White);
+                vertices[3] = Vertex(Vector2f(boundaries.x + boundaries.w, boundaries.y), Color::White);
+                t.draw(vertices, 4, Lines);
+                topLeftTree->draw(t);
+                topRightTree->draw(t);
+                botLeftTree->draw(t);
+                botRightTree->draw(t);
+                
+            }
+        }
+
+        void searchPoint(Point* p) {
+            Point* findP = new Point(p->x,p->y);
+            for ((findP->x) - 2; (findP->x) < (p->x) + 3; findP->x++) {
+
+            }
+
+        }
+       
+        void query(Rectangle& area, Point* &found, Point*& foundSave) {
+            if (!area.intersects(boundaries))
+                return;
+            if (divided) {
+                topLeftTree->query(area, found, foundSave);
+                topRightTree->query(area, found, foundSave);
+                botLeftTree->query(area, found,foundSave);
+                botRightTree->query(area, found, foundSave);
+            }
+            else {
+                for (size_t i = 0; i < children.size(); i++) {
+                    if (area.contains(*children[i])) {
+                        found = children[i];
+                        foundSave->x = children[i]->x;
+                        foundSave->y = children[i]->y;
+                    }
+
+                }
+            }
+        }
+       
+        void deletePoint(Point*& found, bool& check) {
+
+            if (!boundaries.contains(*found)) {
+                return;
+            }
+               
+
+            if (divided) {
+                topLeftTree->deletePoint(found, check);
+                topRightTree->deletePoint(found, check);
+                botLeftTree->deletePoint(found, check);
+                botRightTree->deletePoint(found, check);
+            }
+            else {
+                vector<Point*>::iterator it = children.begin();
+                for (size_t i = 0; i < children.size(); i++) {
+                    if ((found->x == children[i]->x)and (found->y == children[i]->y)) {
+                        children.erase(it);
+                        check = true;
+
+                        return;
+                    }
+                    it++;
+                }
+            }
+            if ((countChildren() <= 4) and (divided) and (countChildren()>0) and (check)) {
+                children.insert(children.begin(), topLeftTree->children.begin(), topLeftTree->children.end());
+                children.insert(children.begin(), topRightTree->children.begin(), topRightTree->children.end());
+                children.insert(children.begin(), botRightTree->children.begin(), botRightTree->children.end());
+                children.insert(children.begin(), botLeftTree->children.begin(), botLeftTree->children.end());
+                topLeftTree = NULL;
+                topRightTree = NULL;
+                botLeftTree = NULL;
+                botRightTree = NULL;
+                divided = false;
+                check = true;
+                return;
+            }
+            check = false;
+        }
+
+        void deleteNode() {
+            if (divided) {
+                topLeftTree->deleteNode();
+                topRightTree->deleteNode();
+                botLeftTree->deleteNode();
+                botRightTree->deleteNode();
+            }
+        }
+    };
+   
+    int main()
+    {
+
+        setlocale(LC_ALL, "Russian");
+
+
+        RenderWindow window(VideoMode(SCREEN_W, SCREEN_H), "Quad Tree ");
+        
+        Quad tree(Rectangle((SCREEN_TREE_W+ SCREEN_SPACE) / 2, (SCREEN_TREE_H+ SCREEN_SPACE)/2 , (SCREEN_TREE_W- SCREEN_SPACE) / 2, (SCREEN_TREE_H- SCREEN_SPACE) / 2), CAPACITY, 0);
+
+        Point* po;
+        vector<Point*> points;
+        Point* found = new Point();
+        Point* foundSave = new Point(-1, -1);
+
+        CircleShape shape;
+        shape.setRadius(2);
+        shape.setOrigin(1, 1);
+        Rectangle area(200,200,4,4);
+
+        sf::RectangleShape borderTree(sf::Vector2f(SCREEN_TREE_W- SCREEN_SPACE, SCREEN_TREE_H- SCREEN_SPACE));
+        borderTree.setFillColor(sf::Color::Transparent);
+        borderTree.setOutlineColor(Color::White);
+        borderTree.setOutlineThickness(1);
+        borderTree.setPosition(SCREEN_SPACE, SCREEN_SPACE);
+
+
+        Text textPoint;
+        Text textScroll;
+        sf::Font font;
+        if (!font.loadFromFile("times.ttf")) {
+            cout << "MOOO";
+        }
+        textPoint.setCharacterSize(24);
+        textPoint.setFont(font);
+        textPoint.setPosition(SCREEN_SPACE, SCREEN_SPACE / 4); // Помещаем текст в левый верхний угол
+
+        textScroll.setCharacterSize(24);
+        textScroll.setFont(font);
+        textScroll.setPosition(SCREEN_SPACE, SCREEN_TREE_H); // Помещаем текст в левый верхний угол
+       
+        while (window.isOpen()) {
+            Event e;
+            while (window.pollEvent(e)) {
+                if (e.type == Event::Closed) 
+                    window.close();
+                else if (e.type == Event::MouseButtonPressed && e.mouseButton.button == Mouse::Left) {
+                    po = new Point(Mouse::getPosition(window).x, Mouse::getPosition(window).y);
+                    if (po->x > SCREEN_SPACE && po->y > SCREEN_SPACE && po->x < SCREEN_TREE_W && po->y < SCREEN_TREE_H) {
+                        points.push_back(po);
+                        string s = "Добавлена точка с координатами: " + to_string(po->x) + ":" + to_string(po->y);
+                        cout << s << endl;
+                        textPoint.setString(L"Добавлена точка с координатами: " + to_string(po->x) + ":" + to_string(po->y));
+                    }
+                    tree.insert(po );
+                    for (size_t i = 0; i < points.size(); i++)
+                        points[i]->highlighted = false;
+                    
+                }
+
+                else if (e.type == Event::MouseButtonPressed && e.mouseButton.button == Mouse::Right) {
+                    for (size_t i = 0; i < points.size(); i++)
+                        points[i]->highlighted = false;
+                    foundSave->x = -1;
+                    foundSave->y = -1;
+                    found = new Point();
+                    tree.query(area, found, foundSave);
+                    if (foundSave->x >= 0) {
+                        found->highlighted = true;
+                        string s = "Выделена точка с координатами: " + to_string(foundSave->x) + ":" + to_string(foundSave->y);
+                        cout << s << endl;
+                        textPoint.setString(L"Выделена точка с координатами: " + to_string(foundSave->x) + ":" + to_string(foundSave->y));
+                    }
+                    
+                }
+                else if (e.type == Event::MouseMoved) {
+                    area.x = Mouse::getPosition(window).x+2;
+                    area.y = Mouse::getPosition(window).y;
+                }
+                else if (e.type == Event::MouseWheelMoved) {
+                    if (e.mouseWheel.delta < 0) {
+                        if (area.h > 4) {
+                            area.w -= 2;
+                            area.h -= 2;
+                        }
+                    }
+                    else if (e.mouseWheel.delta > 0) 
+                        if (area.h < 20) {
+                            area.h += 2;
+                            area.w += 2;
+
+                        }
+                    string s = "Размер курсора: " + to_string(area.h);
+                    cout << s << endl;
+                    textScroll.setString(L"Размер курсора: " + to_string(area.h));
+                }
+
+                else if (Keyboard::isKeyPressed(sf::Keyboard::LShift)) {
+                    if (foundSave->x != -1) {
+                        bool check = false;
+                        tree.deletePoint(foundSave, check);
+                        int i=0;
+                        while(!(points[i]->x == foundSave->x && points[i]->y == foundSave->y)){
+                            i++;    
+                        }
+                        points.erase(points.begin() + i);
+                        string s = "Удалена точка с координатами: " + to_string(foundSave->x) + ":" + to_string(foundSave->y);
+                        cout << s<<endl;
+                        textPoint.setString(L"Удалена точка с координатами: " + to_string(foundSave->x) + ":" + to_string(foundSave->y));
+                        foundSave->x = -1;
+                        foundSave->y = -1;
+                    }
+                  
+                }
+
+            }
+
+            
+
+            window.clear(sf::Color::Black);
+           
+            for (Point* p : points) {
+                shape.setPosition(p->x, p->y);
+                shape.setFillColor(p->highlighted ? Color::Green : Color::White);
+                window.draw(shape);
+            }
+            tree.draw(window);
+            area.draw(window);
+            window.draw(borderTree);
+            window.draw(textPoint);
+            window.draw(textScroll);
+            window.display();
+        }
+    
+        return 0;
+    }
+
+
